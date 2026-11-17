@@ -36,26 +36,29 @@ model Branch {
   stockMovements StockMovement[]
   purchases      Purchase[]
   sales          Sale[]
+  cashSessions   CashSession[]
 
   @@map("branches")
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   name         String
   passwordHash String
-  role         Role     @default(CASHIER)
-  active       Boolean  @default(true)
+  role         Role      @default(CASHIER)
+  active       Boolean   @default(true)
   lastLoginAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   branches       UserBranch[]
   sessions       Session[]
   stockMovements StockMovement[]
   purchases      Purchase[]
   sales          Sale[]
+  cancelledSales Sale[]          @relation("SaleCancelledBy")
+  cashSessions   CashSession[]
 
   @@map("users")
 }
@@ -309,31 +312,77 @@ enum SaleStatus {
   REFUNDED // devuelta total o parcialmente
 }
 
+// Turno de caja de un cajero: se abre con un fondo inicial y se cierra con el arqueo
+// (conteo del efectivo). Cada usuario puede tener solo una caja abierta a la vez
+// (índice único parcial en la migración).
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+model CashSession {
+  id            String            @id @default(cuid())
+  number        Int               @unique @default(autoincrement())
+  branchId      String
+  userId        String // cajero
+  status        CashSessionStatus @default(OPEN)
+  openingAmount Decimal           @db.Decimal(12, 2) // fondo inicial (sencillo)
+  openingNote   String?
+  openedAt      DateTime          @default(now())
+  // Se llenan al cerrar (foto del momento del cierre)
+  closedAt      DateTime?
+  salesCount    Int?
+  cashSales     Decimal?          @db.Decimal(12, 2) // efectivo cobrado en ventas vigentes
+  expectedCash  Decimal?          @db.Decimal(12, 2) // fondo + efectivo de ventas
+  countedCash   Decimal?          @db.Decimal(12, 2) // lo que contó el cajero
+  difference    Decimal?          @db.Decimal(12, 2) // contado − esperado (+ sobra, − falta)
+  denominations Json? // conteo por billete/moneda: { "200": 1, "0.25": 4, … }
+  closingNote   String?
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  sales  Sale[]
+
+  @@index([branchId, openedAt])
+  @@index([userId, status])
+  @@map("cash_sessions")
+}
+
 model Sale {
-  id         String     @id @default(cuid())
-  number     Int        @unique @default(autoincrement())
-  branchId   String
-  userId     String // cajero
-  customerId String?
-  status     SaleStatus @default(COMPLETED)
-  subtotal   Decimal    @db.Decimal(12, 2)
-  discount   Decimal    @default(0) @db.Decimal(12, 2)
-  tax        Decimal    @default(0) @db.Decimal(12, 2)
-  total      Decimal    @db.Decimal(12, 2)
-  note       String?
-  // Id generado en el cliente para sincronizar ventas hechas sin conexión (PWA)
-  clientId   String?    @unique
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id            String     @id @default(cuid())
+  number        Int        @unique @default(autoincrement())
+  branchId      String
+  userId        String // cajero
+  cashSessionId String? // turno de caja en que se cobró
+  customerId    String?
+  status        SaleStatus @default(COMPLETED)
+  // subtotal = suma de las líneas (ya con su descuento); discount = descuento a toda la venta
+  subtotal      Decimal    @db.Decimal(12, 2)
+  discount      Decimal    @default(0) @db.Decimal(12, 2)
+  tax           Decimal    @default(0) @db.Decimal(12, 2) // impuesto incluido en el total
+  total         Decimal    @db.Decimal(12, 2)
+  note          String?
+  // Id generado en el cliente: evita cobrar dos veces la misma venta (doble clic, reintento)
+  // y servirá para sincronizar ventas hechas sin conexión (PWA)
+  clientId      String?    @unique
+  // Anulación (solo gerente o administrador)
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   branch         Branch          @relation(fields: [branchId], references: [id])
   user           User            @relation(fields: [userId], references: [id])
+  cashSession    CashSession?    @relation(fields: [cashSessionId], references: [id])
+  cancelledBy    User?           @relation("SaleCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   customer       Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items          SaleItem[]
   payments       Payment[]
   stockMovements StockMovement[]
 
   @@index([branchId, createdAt])
+  @@index([cashSessionId])
   @@map("sales")
 }
 
@@ -343,9 +392,9 @@ model SaleItem {
   productId String
   quantity  Decimal @db.Decimal(12, 3)
   unitPrice Decimal @db.Decimal(12, 2)
-  discount  Decimal @default(0) @db.Decimal(12, 2)
+  discount  Decimal @default(0) @db.Decimal(12, 2) // descuento de la línea, en dinero
   taxRate   Decimal @default(0) @db.Decimal(5, 2)
-  total     Decimal @db.Decimal(12, 2)
+  total     Decimal @db.Decimal(12, 2) // cantidad × precio − descuento
   // Costo al momento de la venta, para calcular margen en reportes
   unitCost  Decimal @default(0) @db.Decimal(12, 2)
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -365,10 +414,14 @@ model Payment {
   id        String        @id @default(cuid())
   saleId    String
   method    PaymentMethod
-  amount    Decimal       @db.Decimal(12, 2)
+  amount    Decimal       @db.Decimal(12, 2) // parte del total que cubre este pago
+  // Solo efectivo: lo que entregó el cliente y el vuelto que se le dio
+  tendered  Decimal?      @db.Decimal(12, 2)
+  change    Decimal?      @db.Decimal(12, 2)
   reference String? // nº de autorización, transferencia, etc.
   createdAt DateTime      @default(now())
   sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
+  @@index([saleId])
   @@map("payments")
 }

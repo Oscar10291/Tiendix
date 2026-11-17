@@ -32,7 +32,10 @@ export const REASONS: Record<ManualKind, { value: string; label: string }[]> = {
   ],
 };
 
-const ALL_REASONS = Object.fromEntries(Object.values(REASONS).flat().map((r) => [r.value, r.label]));
+// Motivos que pone el sistema (no se eligen a mano)
+const SYSTEM_REASONS = [{ value: "ANULACION_VENTA", label: "Anulación de venta" }];
+
+const ALL_REASONS = Object.fromEntries([...Object.values(REASONS).flat(), ...SYSTEM_REASONS].map((r) => [r.value, r.label]));
 
 /** Texto legible de un motivo guardado en el kárdex. */
 export function reasonLabel(value: string | null | undefined) {

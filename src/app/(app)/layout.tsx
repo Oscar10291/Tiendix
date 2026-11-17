@@ -10,6 +10,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const nav = [
     { href: "/", label: "Inicio", show: true },
+    { href: "/caja", label: "Caja", show: can(user.role, "pos:use") },
+    { href: "/ventas", label: "Ventas", show: can(user.role, "pos:use") },
     { href: "/productos", label: "Productos", show: can(user.role, "products:view") },
     { href: "/inventario", label: "Inventario", show: can(user.role, "inventory:view") },
     { href: "/admin/usuarios", label: "Usuarios", show: can(user.role, "users:manage") },
@@ -17,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-neutral-200 dark:border-neutral-800">
+      <header className="border-b border-neutral-200 print:hidden dark:border-neutral-800">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <Link href="/" className="text-lg font-bold">
             Tiendix

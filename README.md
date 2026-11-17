@@ -59,6 +59,7 @@ Usuarios de ejemplo creados por el seed (el seed también crea la *Sucursal Nort
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` / `pnpm start` | Compilar y correr en modo producción |
 | `pnpm lint` / `pnpm typecheck` | ESLint y verificación de tipos |
+| `pnpm test` | Pruebas de los cálculos de la caja (totales, descuentos, IVA, arqueo) |
 | `pnpm db:up` / `pnpm db:down` | Iniciar / detener PostgreSQL en Docker |
 | `pnpm db:migrate` | Crear y aplicar migraciones tras cambiar `prisma/schema.prisma` |
 | `pnpm db:seed` | Cargar datos de ejemplo (se puede correr varias veces) |
@@ -84,6 +85,9 @@ Usuarios de ejemplo creados por el seed (el seed también crea la *Sucursal Nort
 | `/productos/nuevo`, editar, activar/desactivar, `/productos/categorias` | Administrador y Gerente |
 | `/inventario` existencias de la sucursal activa y `/inventario/kardex` | Administrador y Gerente |
 | `/inventario/movimiento` entradas, salidas y ajustes manuales | Administrador y Gerente |
+| `/caja` abrir caja, cobrar y cerrar su propia caja | todos |
+| `/ventas` ventas y reimpresión de tickets; `/caja/cortes` cortes de caja | Cajero: solo las suyas · Gerente y Admin: todas las de la sucursal |
+| Anular ventas, cerrar la caja de otro usuario | Administrador y Gerente |
 
 ## Productos e inventario
 
@@ -106,6 +110,22 @@ No hace falta instalar nada. Los lectores USB o Bluetooth se comportan como un t
 - En el formulario de producto, Enter en un código agrega otra fila en vez de guardar.
 - Si se busca un código que no existe, Productos ofrece crear el producto con ese código ya escrito.
 
+## Caja (punto de venta)
+
+Por ahora solo se cobra **en efectivo**. El modelo ya guarda cada pago con su método (`Payment.method`), así que tarjeta, transferencia y pagos mixtos se pueden agregar después sin cambiar las tablas.
+
+1. **Abrir caja** (`/caja`): el cajero escribe el fondo inicial (el sencillo para dar vuelto). Cada usuario puede tener **una sola caja abierta** a la vez, en una sucursal.
+2. **Cobrar**: escanear o buscar productos arma el carrito. Escanear de nuevo el mismo producto suma 1 (o 12 si es el código de un fardo). Se puede cambiar la cantidad, poner **descuento por producto** y **descuento a toda la venta**, en quetzales o en %. Los precios ya incluyen IVA; el ticket muestra el IVA incluido.
+   - **F12** abre el cobro: se escribe lo recibido (o se toca *Exacto*, *Q50*, *Q100*…) y muestra el **cambio**. Enter confirma.
+   - Al confirmar, en una sola transacción se guarda la venta, sus líneas y el pago, y se **descuenta el stock** con un movimiento *Venta* en el kárdex. Si algún producto no alcanza, no se guarda nada (el stock nunca queda negativo). Los servicios (productos sin control de existencias) no descuentan stock.
+   - Los precios los toma el servidor de la base de datos; el navegador solo manda cantidades y descuentos.
+   - Cada venta lleva un id generado en el navegador: si se hace doble clic o se corta la conexión y se reintenta, no se cobra dos veces.
+3. **Ticket**: botón *Imprimir ticket* (o casilla "imprimir automáticamente al cobrar"). Está pensado para impresoras térmicas de **80 mm**; en el diálogo de impresión elige la impresora y márgenes "Ninguno". Se puede reimprimir desde `/ventas`. Dice "Comprobante interno, no es factura".
+4. **Cerrar caja / arqueo** (`/caja/cortes/…/cerrar`): se cuentan billetes y monedas de quetzal y el sistema compara con lo esperado (**fondo + efectivo de ventas vigentes**). Guarda el conteo, la diferencia (sobrante o faltante) y una nota. El corte se puede imprimir. Un gerente puede cerrar la caja que un cajero dejó abierta.
+5. **Anular venta** (gerente o administrador, en `/ventas/<id>`): pide un motivo, marca la venta como *Anulada* (no se borra) y devuelve el stock con un movimiento *Devolución de cliente · Anulación de venta*. Si la caja de esa venta sigue abierta, el efectivo esperado baja (se supone que el dinero se devolvió desde esa caja); si ya estaba cerrada, el corte guardado no cambia y lo indica.
+
+Los cálculos de dinero se hacen en centavos enteros (`src/lib/pos/money.ts`), igual en el navegador y en el servidor, para evitar errores de redondeo.
+
 ## Modelo de datos
 
 Definido en [`prisma/schema.prisma`](prisma/schema.prisma).
@@ -116,7 +136,7 @@ Definido en [`prisma/schema.prisma`](prisma/schema.prisma).
 | Catálogo | `Category`, `Product`, `ProductBarcode` | Categorías jerárquicas. Un producto puede tener varios códigos de barras (p. ej. unidad y fardo, con `quantity`). Precios con impuesto incluido y `taxRate`. |
 | Inventario | `Stock`, `StockMovement` | `Stock` guarda la existencia actual por sucursal; `StockMovement` es el kárdex (entradas positivas, salidas negativas) ligado a la compra/venta que lo originó. Cantidades con 3 decimales para productos a granel. |
 | Compras | `Supplier`, `Purchase`, `PurchaseItem` | Estados `DRAFT → ORDERED → RECEIVED`. Al recibir se generarán los movimientos de stock. |
-| Ventas | `Customer`, `Sale`, `SaleItem`, `Payment` | Pagos mixtos (efectivo, tarjeta, transferencia). `SaleItem.unitCost` guarda el costo para reportes de margen. `Sale.clientId` permitirá sincronizar ventas hechas sin conexión. |
+| Ventas | `CashSession`, `Customer`, `Sale`, `SaleItem`, `Payment` | `CashSession` es el turno de caja (fondo, arqueo y diferencia). `Sale.subtotal` = suma de líneas ya con su descuento; `Sale.discount` = descuento a la venta. `Payment` guarda método, monto, efectivo recibido y cambio (listo para pagos mixtos). `SaleItem.unitCost` guarda el costo para reportes de margen. `Sale.clientId` evita cobros duplicados y servirá para ventas sin conexión. |
 
 ## Estructura
 
@@ -127,11 +147,13 @@ prisma/
   seed.ts           datos de ejemplo
 src/
   app/              páginas y rutas API (Next.js App Router)
-    (app)/          páginas que exigen sesión (inicio, cuenta, admin, productos, inventario)
+    (app)/          páginas que exigen sesión (inicio, cuenta, admin, productos, inventario, caja, ventas)
+    ticket/         ticket de venta para imprimir (sin el menú)
     login/          pantalla de inicio de sesión
   components/       componentes compartidos
   lib/auth/         sesiones, permisos por rol y acciones de login
   lib/inventory/    movimientos de stock, motivos y consultas de existencias
+  lib/pos/          cálculos de la caja (money.ts) y consultas de turnos (cash.ts)
   lib/catalog.ts    búsqueda de productos por código, SKU o nombre
   lib/prisma.ts     cliente de Prisma compartido
   middleware.ts     redirige al login si no hay sesión
@@ -142,7 +164,7 @@ docker-compose.yml  PostgreSQL local
 
 1. ~~Autenticación y permisos por rol~~ ✅
 2. ~~Productos, categorías y existencias con entradas/salidas manuales~~ ✅ (falta escaneo con cámara y traslados entre sucursales)
-3. Caja (POS): búsqueda por código, carrito, cobro y ticket
+3. ~~Caja (POS): carrito, cobro en efectivo, descuentos, ticket, apertura/cierre y anulaciones~~ ✅ (faltan tarjeta, transferencia y pagos mixtos)
 4. Compras y recepción de mercadería
 5. Reportes (ventas por día, stock bajo, kárdex)
 6. PWA offline para la caja
