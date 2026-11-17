@@ -1,0 +1,29 @@
+# Configuración de pnpm (pnpm 10+ lee estos ajustes aquí, no en package.json)
+
+# No instalar versiones publicadas hace menos de 1 día (protección de cadena de suministro)
+minimumReleaseAge: 1440
+
+# Paquetes a los que se les permite ejecutar scripts de instalación
+# allowBuilds lo usa pnpm 11; onlyBuiltDependencies lo usa pnpm 10
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@tailwindcss/oxide": true
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "@tailwindcss/oxide"
+  - esbuild
+  - prisma
+  - sharp
+  - unrs-resolver
+
+# ESLint de Next.js necesita sus plugins visibles en node_modules
+publicHoistPattern:
+  - "*eslint*"
+  - "*prisma*"
