@@ -80,6 +80,31 @@ Usuarios de ejemplo creados por el seed (el seed también crea la *Sucursal Nort
 | `/` inicio (muestra solo los módulos permitidos) | todos con sesión |
 | `/cuenta` datos propios y cambio de contraseña | todos con sesión |
 | `/admin/usuarios` crear, editar, activar/desactivar, rol y sucursales | Administrador |
+| `/productos` lista y detalle de productos (el cajero no ve el costo) | todos con sesión |
+| `/productos/nuevo`, editar, activar/desactivar, `/productos/categorias` | Administrador y Gerente |
+| `/inventario` existencias de la sucursal activa y `/inventario/kardex` | Administrador y Gerente |
+| `/inventario/movimiento` entradas, salidas y ajustes manuales | Administrador y Gerente |
+
+## Productos e inventario
+
+- **Catálogo** (`/productos`): nombre, SKU (si se deja vacío se genera `P000001`, `P000002`…), categoría, unidad, costo, precio con impuesto, % de impuesto, stock mínimo y varios códigos de barras. Cada código tiene "unidades" para empaques (un fardo de 12 lleva 12). Los productos no se borran: se **desactivan** para no perder su historial.
+- **Categorías** (`/productos/categorias`): con subcategorías (p. ej. *Bebidas › Gaseosas*). Desactivar una categoría solo deja de ofrecerla en el formulario.
+- **Existencias** (`/inventario`): por sucursal activa, con totales, alertas de **stock bajo** (existencia ≤ mínimo) y **sin stock**, y valor del inventario al costo. El inicio muestra un aviso si hay productos con stock bajo.
+- **Movimientos manuales** (`/inventario/movimiento`):
+  - *Entrada*: inventario inicial, compra directa, devolución de cliente, bonificación u otro. Una compra directa con costo nuevo actualiza el costo del producto.
+  - *Salida*: merma, daño, consumo interno, robo, devolución al proveedor u otro. No deja que la existencia quede negativa.
+  - *Ajuste por conteo*: se escribe lo que hay en realidad y el sistema registra la diferencia.
+  - El motivo "Otro" exige una nota.
+- **Kárdex** (`/inventario/kardex`): historial de cada movimiento con cantidad (+/−), saldo resultante, costo, motivo y usuario; filtros por producto, tipo y fechas.
+- Toda la lógica de existencias pasa por `applyStockMovement()` en `src/lib/inventory/stock.ts`, que bloquea la fila del producto mientras actualiza para que dos movimientos al mismo tiempo no se pisen. La caja y las compras la usarán también.
+
+### Lector de códigos de barras
+
+No hace falta instalar nada. Los lectores USB o Bluetooth se comportan como un teclado: escriben el código y mandan Enter. Los campos con el ícono de código de barras (en Productos, Inventario y Movimientos) tienen el foco al abrir la página; **F2** o **/** vuelven a enfocarlos.
+
+- En *Movimientos*, escanear selecciona el producto y pasa a la cantidad; si el código es de un empaque, propone esa cantidad (12 para un fardo). Tras guardar, el cursor vuelve al escaneo para seguir con el siguiente producto.
+- En el formulario de producto, Enter en un código agrega otra fila en vez de guardar.
+- Si se busca un código que no existe, Productos ofrece crear el producto con ese código ya escrito.
 
 ## Modelo de datos
 
@@ -102,10 +127,12 @@ prisma/
   seed.ts           datos de ejemplo
 src/
   app/              páginas y rutas API (Next.js App Router)
-    (app)/          páginas que exigen sesión (inicio, cuenta, admin)
+    (app)/          páginas que exigen sesión (inicio, cuenta, admin, productos, inventario)
     login/          pantalla de inicio de sesión
   components/       componentes compartidos
   lib/auth/         sesiones, permisos por rol y acciones de login
+  lib/inventory/    movimientos de stock, motivos y consultas de existencias
+  lib/catalog.ts    búsqueda de productos por código, SKU o nombre
   lib/prisma.ts     cliente de Prisma compartido
   middleware.ts     redirige al login si no hay sesión
 docker-compose.yml  PostgreSQL local
@@ -114,7 +141,7 @@ docker-compose.yml  PostgreSQL local
 ## Próximos pasos
 
 1. ~~Autenticación y permisos por rol~~ ✅
-2. CRUD de productos y categorías, con escaneo de códigos de barras
+2. ~~Productos, categorías y existencias con entradas/salidas manuales~~ ✅ (falta escaneo con cámara y traslados entre sucursales)
 3. Caja (POS): búsqueda por código, carrito, cobro y ticket
 4. Compras y recepción de mercadería
 5. Reportes (ventas por día, stock bajo, kárdex)

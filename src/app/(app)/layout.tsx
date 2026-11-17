@@ -10,6 +10,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const nav = [
     { href: "/", label: "Inicio", show: true },
+    { href: "/productos", label: "Productos", show: can(user.role, "products:view") },
+    { href: "/inventario", label: "Inventario", show: can(user.role, "inventory:view") },
     { href: "/admin/usuarios", label: "Usuarios", show: can(user.role, "users:manage") },
   ].filter((item) => item.show);
 
