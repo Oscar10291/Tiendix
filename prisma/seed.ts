@@ -24,6 +24,31 @@ async function main() {
     },
   });
 
+  // Segunda sucursal y usuarios de prueba para cada rol
+  const north = await prisma.branch.upsert({
+    where: { code: "NORTE" },
+    update: {},
+    create: { code: "NORTE", name: "Sucursal Norte" },
+  });
+
+  const demoUsers = [
+    { email: "gerente@tiendix.local", name: "Gerente de prueba", password: "gerente123", role: Role.MANAGER, branchIds: [branch.id, north.id] },
+    { email: "cajero@tiendix.local", name: "Cajero de prueba", password: "cajero123", role: Role.CASHIER, branchIds: [branch.id] },
+  ];
+  for (const u of demoUsers) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: {},
+      create: {
+        email: u.email,
+        name: u.name,
+        passwordHash: await bcrypt.hash(u.password, 10),
+        role: u.role,
+        branches: { create: u.branchIds.map((branchId) => ({ branchId })) },
+      },
+    });
+  }
+
   const categoryNames = ["Bebidas", "Abarrotes", "Limpieza", "Snacks"];
   const categories: Record<string, string> = {};
   for (const name of categoryNames) {
@@ -82,7 +107,10 @@ async function main() {
     });
   }
 
-  console.log("Seed listo. Usuario: admin@tiendix.local / admin123");
+  console.log("Seed listo. Usuarios de prueba:");
+  console.log("  admin@tiendix.local   / admin123   (Administrador)");
+  console.log("  gerente@tiendix.local / gerente123 (Gerente)");
+  console.log("  cajero@tiendix.local  / cajero123  (Cajero)");
 }
 
 main()

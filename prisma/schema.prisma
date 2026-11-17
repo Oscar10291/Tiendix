@@ -31,6 +31,7 @@ model Branch {
   updatedAt DateTime @updatedAt
 
   users          UserBranch[]
+  sessions       Session[]
   stock          Stock[]
   stockMovements StockMovement[]
   purchases      Purchase[]
@@ -46,10 +47,12 @@ model User {
   passwordHash String
   role         Role     @default(CASHIER)
   active       Boolean  @default(true)
+  lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   branches       UserBranch[]
+  sessions       Session[]
   stockMovements StockMovement[]
   purchases      Purchase[]
   sales          Sale[]
@@ -66,6 +69,25 @@ model UserBranch {
 
   @@id([userId, branchId])
   @@map("user_branches")
+}
+
+// Sesiones de inicio de sesión. La cookie guarda un token aleatorio;
+// aquí solo se guarda su hash (SHA-256), así un volcado de la base no permite
+// suplantar a nadie. Borrar la fila cierra la sesión al instante.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  branchId  String? // sucursal activa en esta sesión
+  expiresAt DateTime
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 // ─────────────────────────────────────────────
