@@ -4,7 +4,8 @@ import { can, ROLE_LABELS, type Permission } from "@/lib/auth/permissions";
 import { getStockSummary } from "@/lib/inventory/queries";
 
 const modules: { name: string; description: string; permission: Permission; href?: string }[] = [
-  { name: "Caja (POS)", description: "Cobro rápido con lector de códigos de barras o cámara.", permission: "pos:use" },
+  { name: "Caja (POS)", description: "Cobro en efectivo con lector de códigos, descuentos, ticket y cierre de caja.", permission: "pos:use", href: "/caja" },
+  { name: "Ventas", description: "Ventas del día, reimpresión de tickets, anulaciones y cortes de caja.", permission: "pos:use", href: "/ventas" },
   { name: "Productos", description: "Catálogo, categorías, precios y códigos de barras.", permission: "products:view", href: "/productos" },
   { name: "Inventario", description: "Existencias por sucursal, ajustes, traslados y kárdex.", permission: "inventory:view", href: "/inventario" },
   { name: "Compras", description: "Proveedores, órdenes de compra y recepción de mercadería.", permission: "purchases:manage" },

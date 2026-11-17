@@ -2,22 +2,12 @@ import Link from "next/link";
 import { StockMovementType, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/auth/session";
-import { TIME_ZONE } from "@/lib/format";
+import { dayStart } from "@/lib/format";
 import { MOVEMENT_TYPE_LABELS } from "@/lib/inventory/reasons";
 import { MovementsTable } from "@/components/movements-table";
 import { Pager, pageParam } from "@/components/pager";
 
 const PAGE_SIZE = 50;
-
-/** "2026-11-17" como inicio del día en la hora de la tienda (Guatemala, UTC-6). */
-function dayStart(value: string | undefined, plusDays = 0) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
-  const offset = TIME_ZONE === "America/Guatemala" ? "-06:00" : "Z";
-  const d = new Date(`${value}T00:00:00${offset}`);
-  if (Number.isNaN(d.getTime())) return undefined;
-  d.setUTCDate(d.getUTCDate() + plusDays);
-  return d;
-}
 
 export default async function KardexPage({
   searchParams,
