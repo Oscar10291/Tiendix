@@ -15,7 +15,7 @@ Sistema web genérico de **inventario y punto de venta (POS)** para tiendas: sto
 | Herramienta | Versión | Instalación sugerida |
 | --- | --- | --- |
 | Node.js | 22 o superior | `brew install node@22` o [nvm](https://github.com/nvm-sh/nvm) (`nvm use` lee `.nvmrc`) |
-| pnpm | 10 | `corepack enable` o `brew install pnpm` |
+| pnpm | 10.16 o superior (probado con 10 y 11) | `corepack enable` o `brew install pnpm` |
 | Docker Desktop | reciente | <https://www.docker.com/products/docker-desktop/> |
 | Git | cualquiera | viene con las Xcode Command Line Tools (`xcode-select --install`) |
 | VS Code (opcional) | — | extensiones recomendadas: *Prisma*, *ESLint*, *Tailwind CSS IntelliSense* |
