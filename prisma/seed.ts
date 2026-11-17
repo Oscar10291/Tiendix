@@ -68,7 +68,7 @@ async function main() {
     { sku: "BEB-002", barcode: "7501055363057", name: "Refresco cola 355 ml", category: "Bebidas", cost: 4, price: 7, stock: 36 },
     { sku: "ABA-001", barcode: "7501000111206", name: "Arroz 1 lb", category: "Abarrotes", cost: 4.5, price: 6.5, stock: 20 },
     { sku: "ABA-002", barcode: "7501000112203", name: "Frijol negro 1 lb", category: "Abarrotes", cost: 5, price: 8, stock: 20 },
-    { sku: "LIM-001", barcode: "7501025403013", name: "Jabón en barra", category: "Limpieza", cost: 3, price: 5.5, stock: 15 },
+    { sku: "LIM-001", barcode: "7501025403013", name: "Jabón en barra", category: "Limpieza", cost: 3, price: 5.5, stock: 4 },
     { sku: "SNK-001", barcode: "7501011115125", name: "Papas fritas 45 g", category: "Snacks", cost: 3.5, price: 6, stock: 30 },
   ];
 
@@ -96,6 +96,7 @@ async function main() {
           branchId: branch.id,
           productId: product.id,
           quantity: p.stock,
+          balance: p.stock,
           unitCost: p.cost,
           userId: admin.id,
           note: "Carga inicial (seed)",
