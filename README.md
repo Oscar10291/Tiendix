@@ -44,7 +44,13 @@ pnpm dev
 
 Abre <http://localhost:3000>. Para comprobar la conexión a la base de datos: <http://localhost:3000/api/health> debe responder `{"status":"ok","database":"ok"}`.
 
-Usuario de ejemplo creado por el seed: `admin@tiendix.local` / `admin123` (el login aún no está implementado).
+Usuarios de ejemplo creados por el seed (el seed también crea la *Sucursal Norte*):
+
+| Correo | Contraseña | Rol | Sucursales |
+| --- | --- | --- | --- |
+| `admin@tiendix.local` | `admin123` | Administrador | todas |
+| `gerente@tiendix.local` | `gerente123` | Gerente | Central y Norte |
+| `cajero@tiendix.local` | `cajero123` | Cajero | Central |
 
 ## Scripts
 
@@ -59,13 +65,29 @@ Usuario de ejemplo creado por el seed: `admin@tiendix.local` / `admin123` (el lo
 | `pnpm db:studio` | Explorador visual de la base de datos (Prisma Studio) |
 | `pnpm db:reset` | Borrar la base, reaplicar migraciones y seed |
 
+## Inicio de sesión y permisos
+
+- **Sesiones propias guardadas en la base de datos** (tabla `sessions`), sin librerías externas. La cookie `tiendix_session` (httpOnly) lleva un token aleatorio; en la base solo se guarda su hash. Duran 7 días. Al desactivar un usuario o cambiar su contraseña, sus sesiones se cierran al instante.
+- **`src/middleware.ts`**: si no hay cookie, manda al login (o responde 401 en `/api/*`). Las rutas públicas están en `src/lib/auth/constants.ts`.
+- **`src/lib/auth/session.ts`**: `requireSession()` y `requirePermission("permiso")` validan la sesión en el servidor. Úsalos al inicio de cada página y de cada *server action* nueva.
+- **`src/lib/auth/permissions.ts`**: lista de permisos y qué rol tiene cada uno. Para cambiar lo que puede hacer un rol, se edita solo ahí.
+- Cada sesión tiene una **sucursal activa** (selector arriba a la derecha) que usarán la caja y el inventario.
+- Protecciones: máximo 5 intentos fallidos de login por correo cada 15 minutos; nadie puede quitarse a sí mismo el rol de administrador ni desactivarse; siempre queda al menos un administrador activo.
+
+| Pantalla | Quién |
+| --- | --- |
+| `/login` | todos |
+| `/` inicio (muestra solo los módulos permitidos) | todos con sesión |
+| `/cuenta` datos propios y cambio de contraseña | todos con sesión |
+| `/admin/usuarios` crear, editar, activar/desactivar, rol y sucursales | Administrador |
+
 ## Modelo de datos
 
 Definido en [`prisma/schema.prisma`](prisma/schema.prisma).
 
 | Área | Modelos | Notas |
 | --- | --- | --- |
-| Organización | `Branch`, `User`, `UserBranch`, enum `Role` | Roles: `ADMIN`, `MANAGER`, `CASHIER`. Cada usuario puede tener acceso a varias sucursales. |
+| Organización | `Branch`, `User`, `UserBranch`, `Session`, enum `Role` | Roles: `ADMIN`, `MANAGER`, `CASHIER`. Cada usuario puede tener acceso a varias sucursales. |
 | Catálogo | `Category`, `Product`, `ProductBarcode` | Categorías jerárquicas. Un producto puede tener varios códigos de barras (p. ej. unidad y fardo, con `quantity`). Precios con impuesto incluido y `taxRate`. |
 | Inventario | `Stock`, `StockMovement` | `Stock` guarda la existencia actual por sucursal; `StockMovement` es el kárdex (entradas positivas, salidas negativas) ligado a la compra/venta que lo originó. Cantidades con 3 decimales para productos a granel. |
 | Compras | `Supplier`, `Purchase`, `PurchaseItem` | Estados `DRAFT → ORDERED → RECEIVED`. Al recibir se generarán los movimientos de stock. |
@@ -80,13 +102,18 @@ prisma/
   seed.ts           datos de ejemplo
 src/
   app/              páginas y rutas API (Next.js App Router)
+    (app)/          páginas que exigen sesión (inicio, cuenta, admin)
+    login/          pantalla de inicio de sesión
+  components/       componentes compartidos
+  lib/auth/         sesiones, permisos por rol y acciones de login
   lib/prisma.ts     cliente de Prisma compartido
+  middleware.ts     redirige al login si no hay sesión
 docker-compose.yml  PostgreSQL local
 ```
 
 ## Próximos pasos
 
-1. Autenticación y permisos por rol
+1. ~~Autenticación y permisos por rol~~ ✅
 2. CRUD de productos y categorías, con escaneo de códigos de barras
 3. Caja (POS): búsqueda por código, carrito, cobro y ticket
 4. Compras y recepción de mercadería
