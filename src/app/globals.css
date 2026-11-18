@@ -37,3 +37,12 @@ body {
     @apply inline-flex items-center justify-center rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:bg-neutral-800;
   }
 }
+
+/* Al imprimir reportes, conservar los colores de las gráficas y las filas marcadas */
+@media print {
+  .print-colors,
+  .print-colors * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
