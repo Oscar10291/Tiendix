@@ -59,10 +59,11 @@ Usuarios de ejemplo creados por el seed (el seed también crea la *Sucursal Nort
 | `pnpm dev` | Servidor de desarrollo |
 | `pnpm build` / `pnpm start` | Compilar y correr en modo producción |
 | `pnpm lint` / `pnpm typecheck` | ESLint y verificación de tipos |
-| `pnpm test` | Pruebas de los cálculos de la caja (totales, descuentos, IVA, arqueo) |
+| `pnpm test` | Pruebas de los cálculos de la caja, compras y reportes (totales, IVA, arqueo, rangos de fechas, archivo de Excel) |
 | `pnpm db:up` / `pnpm db:down` | Iniciar / detener PostgreSQL en Docker |
 | `pnpm db:migrate` | Crear y aplicar migraciones tras cambiar `prisma/schema.prisma` |
 | `pnpm db:seed` | Cargar datos de ejemplo (se puede correr varias veces) |
+| `pnpm db:demo` | Cargar 3 semanas de ventas, cortes y compras de demostración para probar los reportes (después de `db:seed`; solo en tu base local) |
 | `pnpm db:studio` | Explorador visual de la base de datos (Prisma Studio) |
 | `pnpm db:reset` | Borrar la base, reaplicar migraciones y seed |
 
@@ -89,6 +90,7 @@ Usuarios de ejemplo creados por el seed (el seed también crea la *Sucursal Nort
 | `/ventas` ventas y reimpresión de tickets; `/caja/cortes` cortes de caja | Cajero: solo las suyas · Gerente y Admin: todas las de la sucursal |
 | Anular ventas, cerrar la caja de otro usuario | Administrador y Gerente |
 | `/compras` órdenes de compra y recepción; `/compras/proveedores` | Administrador y Gerente |
+| `/reportes` y el tablero del inicio | Administrador y Gerente (solo de sus sucursales). El cajero ve en el inicio solo lo que lleva vendido hoy |
 
 ## Productos e inventario
 
@@ -142,6 +144,20 @@ Los cálculos de dinero se hacen en centavos enteros (`src/lib/pos/money.ts`), i
 - El costo promedio es el que guarda cada venta en `SaleItem.unitCost`, así los reportes de utilidad usan lo que realmente costó la mercadería.
 - Los cálculos se hacen en centavos y milésimas enteras (`src/lib/purchases/calc.ts`, con pruebas en `calc.test.ts`).
 
+## Reportes y tablero
+
+- **Tablero del inicio** (gerente y administrador, sucursal activa): vendido hoy comparado con *ayer a esta hora*, número de ventas, ticket promedio, utilidad bruta y margen, gráfica de los últimos 7 días, los 5 más vendidos del día, cajas abiertas con lo que llevan y compras por recibir (y atrasadas).
+- **Reportes** (`/reportes`). Todos se filtran por **sucursal** (la activa, otra o *Todas* las que el usuario puede ver) y, los que dependen de fechas, por **desde / hasta** con atajos (hoy, ayer, 7 días, este mes, mes anterior, 30 días, este año). Por defecto: este mes.
+  - **Ventas**: por día, semana o mes (los períodos sin ventas también salen) y por cajero; total cobrado, descuentos, IVA incluido, venta sin IVA, costo, utilidad, margen y ticket promedio; comparación con el período anterior del mismo largo; anuladas aparte.
+  - **Productos y utilidad**: por producto (ordenable por utilidad, cantidad, venta o margen), por categoría, y **menos vendidos** (incluye los activos que no se vendieron). Las filas con utilidad negativa salen en rojo.
+  - **Inventario**: stock bajo con lo que falta para el mínimo, valor del inventario al costo y a precio de venta por categoría y por producto. Es la foto de este momento (no depende de fechas).
+  - **Cortes de caja**: cada cierre con fondo, esperado, contado y diferencia; resumen por cajero con faltantes y sobrantes sumados por separado. Avisa qué cajas siguen abiertas.
+  - **Compras**: por proveedor y la lista de órdenes **recibidas** en el rango (por fecha de recepción), más lo pendiente de recibir.
+- **Cómo se calcula la utilidad**: *venta sin IVA − costo*. El costo es el costo promedio ponderado que la venta guardó en cada línea al cobrar (`SaleItem.unitCost`); si una línea quedó con costo 0 se usa el costo promedio actual del producto. El descuento a toda la venta se reparte entre sus productos, y el IVA de cada venta se reparte entre sus líneas, así el reporte de productos suma lo mismo que el de ventas. Solo cuentan ventas vigentes.
+- **Excel**: botón *Descargar Excel* en cada reporte, con los mismos filtros. Trae una hoja *Resumen* y una hoja por tabla, con formato de quetzales, porcentajes y encabezado fijo. Se genera sin librerías externas (`src/lib/reports/xlsx.ts`).
+- **PDF**: botón *Imprimir / PDF* abre el diálogo de impresión del navegador; elige *Guardar como PDF*. La hoja sale horizontal, sin el menú ni los filtros, con la fecha en que se generó.
+- Las fechas se agrupan en la hora de Guatemala (`TIME_ZONE` en `src/lib/format.ts`); las semanas empiezan en lunes. Rango máximo: 2 años; con más de 92 días se agrupa por semana como mínimo.
+
 ## Modelo de datos
 
 Definido en [`prisma/schema.prisma`](prisma/schema.prisma).
@@ -161,9 +177,10 @@ prisma/
   schema.prisma     modelo de datos
   migrations/       migraciones SQL generadas por Prisma
   seed.ts           datos de ejemplo
+  demo.ts           ventas, cortes y compras de demostración (pnpm db:demo)
 src/
   app/              páginas y rutas API (Next.js App Router)
-    (app)/          páginas que exigen sesión (inicio, cuenta, admin, productos, inventario, caja, ventas, compras)
+    (app)/          páginas que exigen sesión (inicio, cuenta, admin, productos, inventario, caja, ventas, compras, reportes)
     ticket/         ticket de venta para imprimir (sin el menú)
     login/          pantalla de inicio de sesión
   components/       componentes compartidos
@@ -171,6 +188,7 @@ src/
   lib/inventory/    movimientos de stock, motivos y consultas de existencias
   lib/pos/          cálculos de la caja (money.ts) y consultas de turnos (cash.ts)
   lib/purchases/    cálculos de compras y costo promedio (calc.ts, cost.ts), estados de la orden
+  lib/reports/      consultas de reportes (load.ts), tablero (dashboard.ts), fechas (range.ts), cálculos (calc.ts) y Excel (xlsx.ts)
   lib/catalog.ts    búsqueda de productos por código, SKU o nombre
   lib/prisma.ts     cliente de Prisma compartido
   middleware.ts     redirige al login si no hay sesión
@@ -183,5 +201,5 @@ docker-compose.yml  PostgreSQL local
 2. ~~Productos, categorías y existencias con entradas/salidas manuales~~ ✅ (falta escaneo con cámara y traslados entre sucursales)
 3. ~~Caja (POS): carrito, cobro en efectivo, descuentos, ticket, apertura/cierre y anulaciones~~ ✅ (faltan tarjeta, transferencia y pagos mixtos)
 4. ~~Compras, proveedores y recepción de mercadería con costo promedio~~ ✅ (faltan recepciones parciales y devoluciones a proveedor)
-5. Reportes (ventas por día, stock bajo, kárdex)
+5. ~~Reportes y tablero de inicio, con exportación a Excel y PDF~~ ✅
 6. PWA offline para la caja

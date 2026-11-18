@@ -15,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/productos", label: "Productos", show: can(user.role, "products:view") },
     { href: "/inventario", label: "Inventario", show: can(user.role, "inventory:view") },
     { href: "/compras", label: "Compras", show: can(user.role, "purchases:manage") },
+    { href: "/reportes", label: "Reportes", show: can(user.role, "reports:view") },
     { href: "/admin/usuarios", label: "Usuarios", show: can(user.role, "users:manage") },
   ].filter((item) => item.show);
 
