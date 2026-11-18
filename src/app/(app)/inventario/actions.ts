@@ -10,6 +10,7 @@ import { decimalSchema, normalizeDecimal } from "@/lib/decimal";
 import { qty } from "@/lib/format";
 import { REASONS, UNIT_LABELS, type ManualKind } from "@/lib/inventory/reasons";
 import { applyStockMovement, StockError } from "@/lib/inventory/stock";
+import { updateAverageCost } from "@/lib/purchases/cost";
 
 export type ProductOption = {
   id: string;
@@ -130,7 +131,11 @@ export async function registerMovement(_prev: MovementState, formData: FormData)
 
   try {
     const movement = await prisma.$transaction(async (tx) => {
-      const m = await applyStockMovement(tx, {
+      // Una compra directa recalcula el costo promedio del producto (antes de sumar la existencia)
+      if (d.kind === "IN" && d.reason === "COMPRA_DIRECTA" && unitCost) {
+        await updateAverageCost(tx, product.id, amount, unitCost);
+      }
+      return applyStockMovement(tx, {
         type: TYPE_BY_KIND[d.kind],
         branchId: branch.id,
         productId: product.id,
@@ -140,11 +145,6 @@ export async function registerMovement(_prev: MovementState, formData: FormData)
         reason: d.reason,
         note: d.note || null,
       });
-      // Una compra directa con costo nuevo actualiza el "último costo" del producto
-      if (d.kind === "IN" && d.reason === "COMPRA_DIRECTA" && d.unitCost && !product.cost.equals(d.unitCost)) {
-        await tx.product.update({ where: { id: product.id }, data: { cost: d.unitCost } });
-      }
-      return m;
     });
 
     revalidatePath("/inventario");

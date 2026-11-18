@@ -52,13 +52,15 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  branches       UserBranch[]
-  sessions       Session[]
-  stockMovements StockMovement[]
-  purchases      Purchase[]
-  sales          Sale[]
-  cancelledSales Sale[]          @relation("SaleCancelledBy")
-  cashSessions   CashSession[]
+  branches           UserBranch[]
+  sessions           Session[]
+  stockMovements     StockMovement[]
+  purchases          Purchase[]
+  sales              Sale[]
+  cancelledSales     Sale[]          @relation("SaleCancelledBy")
+  receivedPurchases  Purchase[]      @relation("PurchaseReceivedBy")
+  cancelledPurchases Purchase[]      @relation("PurchaseCancelledBy")
+  cashSessions       CashSession[]
 
   @@map("users")
 }
@@ -130,7 +132,7 @@ model Product {
   categoryId  String?
   category    Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   unit        UnitOfMeasure @default(UNIT)
-  cost        Decimal       @default(0) @db.Decimal(12, 2) // último costo de compra
+  cost        Decimal       @default(0) @db.Decimal(12, 2) // costo promedio ponderado (se recalcula al recibir compras)
   price       Decimal       @db.Decimal(12, 2) // precio de venta (con impuesto incluido)
   taxRate     Decimal       @default(0) @db.Decimal(5, 2) // % de impuesto, p. ej. 12.00
   trackStock  Boolean       @default(true) // false para servicios
@@ -232,7 +234,8 @@ model Supplier {
   email       String?
   phone       String?
   address     String?
-  active      Boolean    @default(true)
+  notes       String? // condiciones de pago, días de visita, etc.
+  active      Boolean    @default(true) // inactivo = no se ofrece en órdenes nuevas
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   purchases   Purchase[]
@@ -248,29 +251,40 @@ enum PurchaseStatus {
   CANCELLED
 }
 
+// Orden de compra: se arma como borrador, se marca como enviada al proveedor y al
+// llegar la mercadería se recibe completa (sube el stock y actualiza el costo).
 model Purchase {
   id            String         @id @default(cuid())
   number        Int            @unique @default(autoincrement())
   supplierId    String
-  branchId      String
-  userId        String
+  branchId      String // sucursal que recibe la mercadería
+  userId        String // quien creó la orden
   status        PurchaseStatus @default(DRAFT)
   invoiceNumber String? // número de factura del proveedor
   subtotal      Decimal        @default(0) @db.Decimal(12, 2)
   tax           Decimal        @default(0) @db.Decimal(12, 2)
   total         Decimal        @default(0) @db.Decimal(12, 2)
   note          String?
+  expectedAt    DateTime? // fecha en que se espera la entrega
+  orderedAt     DateTime? // cuándo se marcó como enviada
   receivedAt    DateTime?
+  receivedById  String?
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   supplier       Supplier        @relation(fields: [supplierId], references: [id])
   branch         Branch          @relation(fields: [branchId], references: [id])
   user           User            @relation(fields: [userId], references: [id])
+  receivedBy     User?           @relation("PurchaseReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  cancelledBy    User?           @relation("PurchaseCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   items          PurchaseItem[]
   stockMovements StockMovement[]
 
   @@index([branchId, createdAt])
+  @@index([supplierId, createdAt])
   @@map("purchases")
 }
 
@@ -284,6 +298,8 @@ model PurchaseItem {
   purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   product    Product  @relation(fields: [productId], references: [id])
 
+  @@index([purchaseId])
+  @@index([productId])
   @@map("purchase_items")
 }
 

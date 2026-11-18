@@ -6,6 +6,7 @@ export const TIME_ZONE = "America/Guatemala";
 
 const moneyFmt = new Intl.NumberFormat(LOCALE, { style: "currency", currency: CURRENCY });
 const qtyFmt = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 3 });
+const dateFmt = new Intl.DateTimeFormat(LOCALE, { dateStyle: "medium", timeZone: TIME_ZONE });
 const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, { dateStyle: "short", timeStyle: "short", timeZone: TIME_ZONE });
 
 type Num = number | string | { toString(): string } | null | undefined;
@@ -18,6 +19,8 @@ export const money = (v: Num) => moneyFmt.format(toNumber(v));
 export const qty = (v: Num) => qtyFmt.format(toNumber(v));
 /** 17/11/26 16:45 */
 export const dateTime = (d: Date) => dateTimeFmt.format(d);
+/** 17 nov 2026 */
+export const date = (d: Date) => dateFmt.format(d);
 
 /** "2026-11-17" como inicio del día en la hora de la tienda (Guatemala, UTC-6). */
 export function dayStart(value: string | undefined, plusDays = 0) {

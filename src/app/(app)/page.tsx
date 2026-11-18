@@ -8,7 +8,7 @@ const modules: { name: string; description: string; permission: Permission; href
   { name: "Ventas", description: "Ventas del día, reimpresión de tickets, anulaciones y cortes de caja.", permission: "pos:use", href: "/ventas" },
   { name: "Productos", description: "Catálogo, categorías, precios y códigos de barras.", permission: "products:view", href: "/productos" },
   { name: "Inventario", description: "Existencias por sucursal, ajustes, traslados y kárdex.", permission: "inventory:view", href: "/inventario" },
-  { name: "Compras", description: "Proveedores, órdenes de compra y recepción de mercadería.", permission: "purchases:manage" },
+  { name: "Compras", description: "Proveedores, órdenes de compra, recepción de mercadería y costo promedio.", permission: "purchases:manage", href: "/compras" },
   { name: "Reportes", description: "Ventas, márgenes, stock bajo y movimientos.", permission: "reports:view" },
   { name: "Usuarios", description: "Crear usuarios, asignar rol y sucursales.", permission: "users:manage", href: "/admin/usuarios" },
 ];

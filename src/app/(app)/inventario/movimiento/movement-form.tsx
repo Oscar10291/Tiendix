@@ -186,7 +186,7 @@ export function MovementForm({ initialProduct, branchName }: { initialProduct: P
                   <span className="text-sm font-medium">Costo unitario</span>
                   <span className="ml-2 text-xs text-neutral-500">Opcional</span>
                   <input name="unitCost" inputMode="decimal" key={product.id} defaultValue={product.cost} className="input mt-1" />
-                  {reason === "COMPRA_DIRECTA" && <span className="mt-1 block text-xs text-neutral-500">Si cambia, se actualiza el costo del producto.</span>}
+                  {reason === "COMPRA_DIRECTA" && <span className="mt-1 block text-xs text-neutral-500">Se recalcula el costo promedio del producto.</span>}
                 </label>
               )}
               <label className={`block ${kind === "IN" ? "" : "sm:col-span-2"}`}>
